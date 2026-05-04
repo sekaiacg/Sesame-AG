@@ -1198,6 +1198,7 @@ class AntOrchard : ModelTask() {
                     "TRIGGER", "ADD_HOME", "PUSH_SUBSCRIBE" -> {
                         val finishResponse = JSONObject(AntOrchardRpcCall.finishTask(userId, sceneCode, taskId, ORCHARD_SOURCE))
                         if (ResChecker.checkRes(TAG, finishResponse)) {
+                            invalidateOrchardListTaskCache()
                             Log.orchard("农场任务🧾[$title]")
                         } else {
                             Log.error(TAG, "农场任务🧾[$title]${finishResponse.optString("desc")}")
@@ -1424,6 +1425,7 @@ class AntOrchard : ModelTask() {
             AntOrchardRpcCall.finishTask(currentUserId, sceneCode, taskId, ORCHARD_SOURCE)
         )
         if (ResChecker.checkRes(TAG, finishResponse)) {
+            invalidateOrchardListTaskCache()
             Log.orchard("农场任务🧾[$title]")
             return true
         }
@@ -1506,6 +1508,7 @@ class AntOrchard : ModelTask() {
             return false
         }
 
+        invalidateOrchardListTaskCache()
         val refreshedTask = queryOrchardTaskById(taskId)
         val taskStatus = refreshedTask?.optString("taskStatus").orEmpty()
         if (taskStatus == "FINISHED" || taskStatus == "RECEIVED") {
@@ -1540,6 +1543,10 @@ class AntOrchard : ModelTask() {
             }
         }
         return null
+    }
+
+    private fun invalidateOrchardListTaskCache() {
+        RpcCache.invalidate("com.alipay.antfarm.orchardListTask")
     }
 
     private fun executeOrchardBrowseRound(
@@ -1957,6 +1964,7 @@ class AntOrchard : ModelTask() {
 
     internal fun triggerTbTask() {
         try {
+            invalidateOrchardListTaskCache()
             val response = AntOrchardRpcCall.orchardListTask()
             val jo = JSONObject(response)
 
@@ -2003,6 +2011,7 @@ class AntOrchard : ModelTask() {
             val response = JSONObject(AntOrchardRpcCall.triggerTbTask(taskId, taskPlantType, source))
             lastResponse = response
             if (response.optString("resultCode") == "100") {
+                invalidateOrchardListTaskCache()
                 return response
             }
         }

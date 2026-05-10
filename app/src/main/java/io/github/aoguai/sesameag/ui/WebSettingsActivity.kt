@@ -39,6 +39,7 @@ import io.github.aoguai.sesameag.model.ModelFields
 import io.github.aoguai.sesameag.model.modelFieldExt.FriendSelectionCountModelField
 import io.github.aoguai.sesameag.model.modelFieldExt.FriendSelectionModelField
 import io.github.aoguai.sesameag.entity.friend.FriendRelation
+import io.github.aoguai.sesameag.task.AnswerAI.AnswerAI
 import io.github.aoguai.sesameag.ui.dto.ModelDto
 import io.github.aoguai.sesameag.ui.dto.ModelFieldInfoDto
 import io.github.aoguai.sesameag.ui.dto.ModelFieldShowDto
@@ -64,6 +65,7 @@ import io.github.aoguai.sesameag.util.maps.VitalityRewardsMap
 import java.io.File
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
+import org.json.JSONObject
 
 class WebSettingsActivity : AppCompatActivity() {
 
@@ -455,6 +457,24 @@ class WebSettingsActivity : AppCompatActivity() {
             }
         }
 
+        @JavascriptInterface
+        fun runFieldAction(modelCode: String, fieldCode: String): String {
+            return try {
+                ensureSettingsUserContext()
+                when {
+                    modelCode == AnswerAI::class.java.simpleName && fieldCode == AnswerAI.FIELD_AI_TEST -> {
+                        val result = Model.getModel(AnswerAI::class.java)?.testAnswerService()
+                            ?: return actionResult(false, "AI答题模块未初始化")
+                        actionResult(result.success, result.message)
+                    }
+                    else -> actionResult(false, "不支持的配置操作：$modelCode.$fieldCode")
+                }
+            } catch (t: Throwable) {
+                Log.printStackTrace(TAG, "runFieldAction failed", t)
+                actionResult(false, "执行失败：${t.message ?: t.javaClass.simpleName}")
+            }
+        }
+
         /**
          * 保存并退出：
          * 前端调用 window.HOOK.saveOnExit() 时触发
@@ -472,6 +492,13 @@ class WebSettingsActivity : AppCompatActivity() {
         @JavascriptInterface
         fun Log(log: String) {
             Log.record(TAG, "设置：$log")
+        }
+
+        private fun actionResult(success: Boolean, message: String): String {
+            return JSONObject()
+                .put("success", success)
+                .put("message", message)
+                .toString()
         }
     }
 

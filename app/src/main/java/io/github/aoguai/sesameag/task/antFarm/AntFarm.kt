@@ -1754,16 +1754,17 @@ class AntFarm : ModelTask() {
             val question = jo.getJSONObject("question")
             val questionId = question.getLong("questionId")
             val labels = question.getJSONArray("label")
+            val answerList = JsonUtil.jsonArrayToList(labels)
             val title = question.getString("title")
 
             var answer: String? = null
             var cacheHit = false
             val cacheKey = "$title|$today"
 
-            // 改进的缓存匹配逻辑
+            // 答题来源顺序：目标端预告答案缓存 -> AnswerAI 已验证正确缓存 -> AI 请求。
             if (farmAnswerCache.containsKey(cacheKey)) {
                 val cachedAnswer = farmAnswerCache[cacheKey]
-                Log.farm("🎉 缓存[$cachedAnswer] 🎯 题目：$cacheKey")
+                Log.farm("🎉 目标端答案缓存[$cachedAnswer] 🎯 题目：$cacheKey")
 
                 // 1. 首先尝试精确匹配
                 for (i in 0..<labels.length()) {
@@ -1782,17 +1783,17 @@ class AntFarm : ModelTask() {
                         if (option.contains(cachedAnswer) || cachedAnswer.contains(option)) {
                             answer = option
                             cacheHit = true
-                            Log.farm("⚠️ 缓存模糊匹配成功：$cachedAnswer → $option")
+                            Log.farm("⚠️ 目标端答案缓存模糊匹配成功：$cachedAnswer → $option")
                             break
                         }
                     }
                 }
             }
 
-            // 缓存未命中时调用AI
+            // 目标端缓存未命中后，AnswerAI 内部会先查已验证正确缓存，再请求 AI。
             if (!cacheHit) {
-                Log.farm("缓存未命中，尝试使用AI答题：$title")
-                answer = AnswerAI.getAnswer(title, JsonUtil.jsonArrayToList(labels), LogChannel.FARM.loggerName)
+                Log.farm("目标端答案缓存未命中，进入AI答题链路：$title")
+                answer = AnswerAI.getAnswer(title, answerList, LogChannel.FARM.loggerName)
                 if (answer.isNullOrEmpty()) {
                     answer = labels.getString(0) // 默认选择第一个选项
                 }
@@ -1804,6 +1805,14 @@ class AntFarm : ModelTask() {
             if (ResChecker.checkRes(TAG + "提交答题答案失败:", joDailySubmit)) {
                 val extInfo = joDailySubmit.getJSONObject("extInfo")
                 val correct = joDailySubmit.getBoolean("correct")
+                if (correct) {
+                    AnswerAI.rememberAnswer(title, answerList, answer, LogChannel.FARM.loggerName)
+                } else {
+                    AnswerAI.removeCachedAnswer(title, LogChannel.FARM.loggerName)
+                    if (farmAnswerCache.remove(cacheKey) != null) {
+                        DataStore.put(FARM_ANSWER_CACHE_KEY, farmAnswerCache)
+                    }
+                }
                 Log.farm("饲料任务答题：" + (if (correct) "正确" else "错误") + "领取饲料［" + extInfo.getString("award") + "g］")
                 val operationConfigList = joDailySubmit.getJSONArray("operationConfigList")
                 updateTomorrowAnswerCache(operationConfigList, tomorrow)

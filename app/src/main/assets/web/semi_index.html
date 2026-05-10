@@ -1319,6 +1319,7 @@
             const [tabs, setTabs] = useState([]);
             const [modelsMap, setModelsMap] = useState({});
             const [draftValues, setDraftValues] = useState({});
+            const [actionLoading, setActionLoading] = useState({});
             const panelRefs = useRef({});
 
             // 列表弹窗相关的 State
@@ -1537,6 +1538,33 @@
                 }
                 commitFieldChange(modelCode, fieldCode, draftValue ?? '');
                 clearDraftValue(modelCode, fieldCode);
+            };
+
+            const runFieldAction = (modelCode, item) => {
+                const actionKey = getDraftKey(modelCode, item.code);
+                setActionLoading(prev => ({ ...prev, [actionKey]: true }));
+                window.setTimeout(() => {
+                    try {
+                        if (!window.HOOK || !window.HOOK.runFieldAction) {
+                            Toast.error('当前环境不支持执行该操作');
+                            return;
+                        }
+                        const result = JSON.parse(window.HOOK.runFieldAction(modelCode, item.code));
+                        if (result && result.success) {
+                            Toast.success(result.message || '执行成功');
+                        } else {
+                            Toast.error(result?.message || '执行失败');
+                        }
+                    } catch (e) {
+                        Toast.error('执行失败');
+                    } finally {
+                        setActionLoading(prev => {
+                            const next = { ...prev };
+                            delete next[actionKey];
+                            return next;
+                        });
+                    }
+                }, 0);
             };
 
             // --- 列表弹窗逻辑 (关键修改部分) ---
@@ -2461,6 +2489,25 @@
                                 {(summary.inactiveCount || 0) > 0 ? (
                                     <div className="field-status">有 {summary.inactiveCount} 人未生效</div>
                                 ) : null}
+                            </div>
+                        </div>
+                    )
+                }
+                if (type === 'EMPTY') {
+                    const actionKey = getDraftKey(modelCode, code);
+                    const actionLabel = code === 'aiTest' ? '测试' : '执行';
+                    return (
+                        <div className={rowClassName} key={code}>
+                            {renderFieldLabel(name, desc, todayInactive, todayInactiveReason)}
+                            <div className="field-control">
+                                <Button
+                                    theme='solid'
+                                    type='secondary'
+                                    loading={Boolean(actionLoading[actionKey])}
+                                    onClick={() => runFieldAction(modelCode, item)}
+                                >
+                                    {actionLabel}
+                                </Button>
                             </div>
                         </div>
                     )

@@ -2,7 +2,6 @@ package io.github.aoguai.sesameag.task.antMember
 
 import io.github.aoguai.sesameag.hook.RequestManager
 import io.github.aoguai.sesameag.util.RandomUtil
-import io.github.aoguai.sesameag.util.TimeUtil
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -245,37 +244,42 @@ object AntMemberRpcCall {
     }
 
     @JvmStatic
-    fun applyTask(darwinName: String, taskConfigId: Long): String {
-        return RequestManager.requestString(
-            "alipay.antmember.biz.rpc.membertask.h5.applyTask",
-            """[{"darwinExpParams":{"darwinName":"$darwinName"},"sourcePassMap":{"innerSource":"","source":"mytab","unid":""},"taskConfigId":$taskConfigId}]"""
-        )
-    }
-
-    @JvmStatic
-    fun executeTask(bizParam: String, bizSubType: String, bizType: String, taskConfigId: Long): String {
-        val bizOutNo = TimeUtil.getFormatDate().replace("-", "")
-        return RequestManager.requestString(
-            "alipay.antmember.biz.rpc.membertask.h5.executeTask",
-            """[{"bizOutNo":"$bizOutNo","bizParam":"$bizParam","bizSubType":"$bizSubType","bizType":"$bizType","sourcePassMap":{"innerSource":"","source":"mytab","unid":""},"syncProcess":true,"taskConfigId":"$taskConfigId"}]"""
-        )
-    }
-
-    @JvmStatic
-    fun queryLegacyAllStatusTaskList(): String {
-        return RequestManager.requestString(
-            "alipay.antmember.biz.rpc.membertask.h5.queryAllStatusTaskList",
-            """[{"sourceBusiness":"signInAd","sourcePassMap":{"innerSource":"","source":"mytab","unid":""}}]"""
-        )
-    }
-
-    @JvmStatic
     fun queryMemberTaskList(): String {
         val args = JSONObject().apply {
             put("source", "signInAd")
         }
         return RequestManager.requestString(
             "com.alipay.amic.memtask.h5.MemTaskListQueryFacade.queryAllStatusTaskList",
+            JSONArray().put(args).toString()
+        )
+    }
+
+    @JvmStatic
+    fun queryMemberSignPageTaskList(pageNo: Int = 1, pageSize: Int = 8): String {
+        val args = JSONObject().apply {
+            put("pageNo", pageNo)
+            put("pageSize", pageSize)
+            put("source", "antmember")
+            put("sourcePassMap", buildMemberSourcePassMap())
+            put("spaceCode", "ant_member_xlight_task")
+            put("switchNormal", true)
+            put("taskTopConfigId", "")
+        }
+        return RequestManager.requestString(
+            "com.alipay.amic.memtask.h5.MemTaskListQueryFacade.signPageTaskList",
+            JSONArray().put(args).toString()
+        )
+    }
+
+    @JvmStatic
+    fun applyMemberTask(taskConfigId: String): String {
+        val args = JSONObject().apply {
+            put("alipayGrowthTask", false)
+            put("sourcePassMap", buildMemberSourcePassMap())
+            put("taskConfigId", taskConfigId)
+        }
+        return RequestManager.requestString(
+            "com.alipay.amic.memtask.h5.MemTaskManagerFacade.applyTask",
             JSONArray().put(args).toString()
         )
     }
@@ -338,7 +342,7 @@ object AntMemberRpcCall {
             put("bizParam", bizParam)
             put("bizSubType", bizSubType)
             put("bizType", bizType)
-            put("outBizNo", TimeUtil.getFormatDate().replace("-", ""))
+            put("outBizNo", System.currentTimeMillis().toString())
             put("sourcePassMap", buildMemberSourcePassMap())
         }
         return RequestManager.requestString(
@@ -571,6 +575,71 @@ object AntMemberRpcCall {
         )
     }
 
+    @JvmStatic
+    fun queryInsuredOpenAndAllowAndUpgrade(entrance: String = "cfsy"): String {
+        val rightNoList = JSONArray().apply {
+            put("UNIVERSAL_ACCIDENT")
+            put("UNIVERSAL_HOSPITAL")
+            put("UNIVERSAL_OUTPATIENT")
+            put("UNIVERSAL_SERIOUSNESS")
+            put("UNIVERSAL_WEALTH")
+            put("UNIVERSAL_TRANS")
+            put("UNIVERSAL_FRAUD_LIABILITY")
+        }
+        val args = JSONObject().apply {
+            put("entrance", entrance)
+            put("giftProdCode", "GIFT_UNIVERSAL_COVERAGE")
+            put("pageRenderRequest", JSONObject().apply {
+                put("channelType", entrance)
+                put("contentKey", "couponId")
+                put("sceneCode", "INSGIFT_APP")
+                put("templateCode", "INSGIFT_APP_NEW_OPEN")
+            })
+            put("rightNoList", rightNoList)
+        }
+        return RequestManager.requestString(
+            "com.alipay.insgiftbff.insgiftMain.queryOpenAndAllowAndUpgrade",
+            JSONArray().put(args).toString(),
+            "insgiftbff", "queryOpenAndAllowAndUpgrade", "insgiftMain"
+        )
+    }
+
+    @JvmStatic
+    fun queryInsuredGiftHomeRender(entrance: String = "cfsy"): String {
+        fun buildPageOptions() = JSONObject().apply {
+            put("channelType", entrance)
+            put("greatPromoPrefetchRPCFlag", true)
+        }
+
+        val args = JSONObject().apply {
+            put("configPageRenderParam", JSONObject().apply {
+                put("pageOptions", buildPageOptions())
+                put("sceneCode", "INSGIFT_APP_CONFIG")
+            })
+            put("pageRenderParam", JSONObject().apply {
+                put("pageOptions", buildPageOptions())
+                put("sceneCode", "INSGIFT_APP")
+            })
+            put("trackCardParam", JSONObject().apply {
+                put("pageOptions", buildPageOptions())
+            })
+            put("vicePageRenderParam", JSONObject().apply {
+                put("pageOptions", buildPageOptions())
+                put("sceneCode", "INSGIFT_APP_VICE")
+            })
+            put("voucherQuery", JSONObject().apply {
+                put("entrance", entrance)
+                put("mktPrizeType", "VOUCHER_QUERY")
+                put("voucherQueryDTO", JSONObject())
+            })
+        }
+        return RequestManager.requestString(
+            "com.alipay.insgiftbff.insgiftMain.giftHomeRender",
+            JSONArray().put(args).toString(),
+            "insgiftbff", "giftHomeRender", "insgiftMain"
+        )
+    }
+
     /**
      * 领取保障金
      */
@@ -579,6 +648,63 @@ object AntMemberRpcCall {
         return RequestManager.requestString(
             "com.alipay.insgiftbff.insgiftMain.gainMyAndFamilySumInsured",
             JSONArray().put(goldBallObj).toString(), "insgiftbff", "gainMyAndFamilySumInsured", "insgiftMain"
+        )
+    }
+
+    @JvmStatic
+    fun queryInsuredTaskListV2(
+        taskCenterId: String,
+        sceneCode: String,
+        entrance: String,
+        controlSolutionSceneCode: String? = null
+    ): String {
+        val args = JSONObject().apply {
+            put("bizData", JSONObject())
+            if (!controlSolutionSceneCode.isNullOrBlank()) {
+                put("controlSolutionSceneCode", controlSolutionSceneCode)
+                put("displayTaskCount", 30)
+            }
+            put("entrance", entrance)
+            put("sceneCode", sceneCode)
+            put("taskCenterId", taskCenterId)
+        }
+        return RequestManager.requestString(
+            "com.alipay.insgiftbff.insgiftTask.queryTaskListv2",
+            JSONArray().put(args).toString(),
+            "insgiftbff", "queryTaskListv2", "insgiftTask"
+        )
+    }
+
+    @JvmStatic
+    fun triggerInsuredTaskV2(
+        appletId: String,
+        taskCenterId: String,
+        sceneCode: String,
+        stageCode: String
+    ): String {
+        val args = JSONObject().apply {
+            put("appletId", appletId)
+            put("sceneCode", sceneCode)
+            put("stageCode", stageCode)
+            put("taskCenId", taskCenterId)
+        }
+        return RequestManager.requestString(
+            "com.alipay.insgiftbff.insgiftTask.taskTriggerv2",
+            JSONArray().put(args).toString(),
+            "insgiftbff", "taskTriggerv2", "insgiftTask"
+        )
+    }
+
+    @JvmStatic
+    fun consultInsuredTaskCenterById(taskCenterId: String, taskId: String): String {
+        val args = JSONObject().apply {
+            put("taskCenterId", taskCenterId)
+            put("taskId", taskId)
+        }
+        return RequestManager.requestString(
+            "com.alipay.insgiftbff.insgiftTask.taskCenterConsultById",
+            JSONArray().put(args).toString(),
+            "insgiftbff", "taskCenterConsultById", "insgiftTask"
         )
     }
 
